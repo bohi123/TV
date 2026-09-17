@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>时间戳转换器</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --bg: #0a0a0c;
+    --bg-elevated: #131318;
+    --card: #18181f;
+    --border: #2a2a35;
+    --border-hover: #3a3a48;
+    --fg: #e8e8ec;
+    --muted: #7a7a88;
+    --accent: #00e5a0;
+    --accent-glow: rgba(0, 229, 160, 0.15);
+    --danger: #ff5d5d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    min-height: 100vh;
+    background-image:
+      radial-gradient(ellipse at 20% -10%, rgba(0, 229, 160, 0.10), transparent 50%),
+      radial-gradient(ellipse at 80% 110%, rgba(255, 107, 53, 0.06), transparent 50%);
+    background-attachment: fixed;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+    background-size: 42px 42px;
+    pointer-events: none; z-index: 0;
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+  }
+  main { position: relative; z-index: 1; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    transition: border-color .2s ease;
+  }
+  .card:hover { border-color: var(--border-hover); }
+
+  .input {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    border-radius: 10px;
+    padding: 12px 14px;
+    width: 100%;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px;
+    transition: all .2s;
+    color-scheme: dark;
+  }
+  .input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  .input.error {
+    border-color: var(--danger);
+    box-shadow: 0 0 0 3px rgba(255, 93, 93, .15);
+  }
+  .input::placeholder { color: #4a4a55; }
+
+  .quick-btn {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all .15s;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .quick-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .quick-btn:active { transform: scale(.97); }
+
+  .result-row {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 12px;
+    padding: 11px 13px;
+    border-radius: 9px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    transition: all .15s;
+    cursor: pointer;
+  }
+  .result-row:hover {
+    border-color: var(--accent);
+    background: rgba(0, 229, 160, 0.04);
+  }
+  .result-row:active { transform: scale(.99); }
+  .result-row .label {
+    color: var(--muted); font-size: 11px;
+    text-transform: uppercase; letter-spacing: .08em;
+    flex-shrink: 0;
+  }
+  .result-row .value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; color: var(--fg);
+    text-align: right; word-break: break-all;
+  }
+
+  .tag {
+    font-size: 10px; padding: 3px 8px;
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    text-transform: uppercase; letter-spacing: .08em;
+  }
+
+  .live-stamp {
+    font-size: clamp(2.75rem, 11vw, 5rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    background: linear-gradient(135deg, #ffffff 0%, var(--accent) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-variant-numeric: tabular-nums;
+  }
+  .display-title {
+    font-weight: 700; letter-spacing: -0.02em;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 12px var(--accent); }
+    50% { opacity: .4; transform: scale(.7); box-shadow: 0 0 4px var(--accent); }
+  }
+  .pulse-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent);
+    animation: pulse-dot 1.6s ease-in-out infinite;
+  }
+
+  .toast {
+    position: fixed; bottom: 30px; left: 50%;
+    transform: translateX(-50%) translateY(120px);
+    background: var(--accent);
+    color: #0a0a0c;
+    padding: 10px 22px; border-radius: 10px;
+    font-weight: 600; font-size: 13px;
+    transition: transform .35s cubic-bezier(.34, 1.56, .64, 1);
+    pointer-events: none; z-index: 100;
+    box-shadow: 0 10px 40px rgba(0, 229, 160, .4);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  .error-msg {
+    color: var(--danger); font-size: 12px;
+    margin-top: 6px; display: none;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .error-msg.show { display: block; }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    filter: invert(.7) sepia(1) saturate(5) hue-rotate(110deg);
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<main class="max-w-3xl mx-auto px-4 py-6 sm:py-10">
+
+  <header class="flex items-center justify-between mb-8">
+    <div class="flex items-center gap-2.5">
+      <div class="pulse-dot"></div>
+      <span class="mono text-xs text-[var(--muted)] uppercase tracking-widest">实时 LIVE</span>
+    </div>
+    <div class="text-xs text-[var(--muted)] mono">UTC<span id="tzOffset"></span> · <span id="tzName"></span></div>
+  </header>
+
+  <section class="mb-10">
+    <div class="text-[var(--muted)] text-xs mb-2 uppercase tracking-widest mono">当前 Unix 时间戳 (秒)</div>
+    <div class="live-stamp mono" id="liveStamp">0</div>
+    <div class="text-[var(--muted)] mt-3 mono text-sm" id="liveDate">--</div>
+  </section>
+
+  <section class="grid gap-4 md:grid-cols-2 mb-6">
+
+    <div class="card p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="display-title text-lg">时间戳 → 日期</h2>
+        <span class="tag">秒 / 毫秒</span>
+      </div>
+      <input type="text" inputmode="numeric" class="input" id="tsInput" placeholder="1700000000" autocomplete="off">
+      <div class="error-msg" id="tsError">请输入有效的数字</div>
+
+      <div class="flex gap-2 mt-3 flex-wrap">
+        <button class="quick-btn" data-ts="now">当前</button>
+        <button class="quick-btn" data-ts="today">今天0点</button>
+        <button class="quick-btn" data-ts="0">1970</button>
+        <button class="quick-btn" data-ts="y2k38">Y2K38</button>
+      </div>
+
+      <div class="space-y-2 mt-4">
+        <div class="result-row" data-copy="">
+          <span class="label">本地</span>
+          <span class="value" id="r-local">--</span>
+        </div>
+        <div class="result-row" data-copy="">
+          <span class="label">UTC</span>
+          <span class="value" id="r-utc">--</span>
+        </div>
+        <div class="result-row" data-copy="">
+          <span class="label">ISO 8601</span>
+          <span class="value" id="r-iso">--</span>
+        </div>
+        <div class="result-row" data-copy="">
+          <span class="label">相对</span>
+          <span class="value" id="r-relative">--</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="display-title text-lg">日期 → 时间戳</h2>
+        <span class="tag">本地时区</span>
+      </div>
+      <input type="datetime-local" class="input" id="dateInput" step="1">
+
+      <div class="flex gap-2 mt-3 flex-wrap">
+        <button class="quick-btn" data-date="now">当前</button>
+        <button class="quick-btn" data-date="today">今天0点</button>
+        <button class="quick-btn" data-date="tomorrow">明天0点</button>
+        <button class="quick-btn" data-date="week">一周后</button>
+      </div>
+
+      <div class="space-y-2 mt-4">
+        <div class="result-row" data-copy="">
+          <span class="label">秒</span>
+          <span class="value" id="r-sec">--</span>
+        </div>
+        <div class="result-row" data-copy="">
+          <span class="label">毫秒</span>
+          <span class="value" id="r-ms">--</span>
+        </div>
+        <div class="result-row" data-copy="">
+          <span class="label">UTC</span>
+          <span class="value" id="r-utc2">--</span>
+        </div>
+        <div class="result-row" data-copy="">
+          <span class="label">星期</span>
+          <span class="value" id="r-week">--</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="text-center text-xs text-[var(--muted)] mt-8 mono opacity-70">
+    点击任意结果行复制 · Unix 时间戳自 1970-01-01 00:00:00 UTC
+  </footer>
+</main>
+
+<div class="toast" id="toast">已复制</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const pad = (n, len = 2) => String(n).padStart(len, '0');
+  const WEEK = ['周日','周一','周二','周三','周四','周五','周六'];
+
+  // ===== 复制 & Toast =====
+  function showToast(msg) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), 1600);
+  }
+  async function copyText(text) {
+    if (!text || text === '--') return;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch {}
+      document.body.removeChild(ta);
+    }
+    showToast('已复制 ' + (text.length > 24 ? text.slice(0, 24) + '…' : text));
+  }
+
+  // ===== 格式化 =====
+  function formatLocal(d) {
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+  function formatUTC(d) {
+    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+  }
+  function relativeTime(d) {
+    const diff = d.getTime() - Date.now();
+    const abs = Math.abs(diff);
+    const past = diff < 0;
+    if (abs < 1000) return '刚刚';
+    const units = [
+      ['年', 365*24*3600*1000],
+      ['个月', 30*24*3600*1000],
+      ['天', 24*3600*1000],
+      ['小时', 3600*1000],
+      ['分钟', 60*1000],
+      ['秒', 1000],
+    ];
+    for (const [name, ms] of units) {
+      if (abs >= ms) {
+        const v = Math.floor(abs / ms);
+        return past ? `${v} ${name}前` : `${v} ${name}后`;
+      }
+    }
+    return '刚刚';
+  }
+  function normalizeTimestamp(input) {
+    const n = Number(input);
+    if (!Number.isFinite(n) || n < 0) return null;
+    // 小于 1e12 视为秒，否则为毫秒
+    if (n < 1e12) return n * 1000;
+    return n;
+  }
+  function localToInputValue(d) {
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+
+  // ===== 时区显示 =====
+  const off = -new Date().getTimezoneOffset() / 60;
+  $('tzOffset').textContent = (off >= 0 ? '+' : '') + off;
+  try {
+    $('tzName').textContent = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch { $('tzName').textContent = 'Local'; }
+
+  // ===== 实时时间戳 =====
+  function updateLive() {
+    const now = Math.floor(Date.now() / 1000);
+    $('liveStamp').textContent = now.toLocaleString('en-US');
+    $('liveDate').textContent = formatLocal(new Date());
+  }
+  updateLive();
+  setInterval(updateLive, 1000);
+
+  // ===== 时间戳 → 日期 =====
+  const tsInput = $('tsInput'), tsError = $('tsError');
+  function convertTs() {
+    const val = tsInput.value.trim();
+    if (!val) {
+      tsError.classList.remove('show'); tsInput.classList.remove('error');
+      ['r-local','r-utc','r-iso','r-relative'].forEach(id => {
+        $(id).textContent = '--';
+        $(id).parentElement.dataset.copy = '';
+      });
+      return;
+    }
+    const ms = normalizeTimestamp(val);
+    if (ms === null) {
+      tsError.classList.add('show'); tsInput.classList.add('error');
+      return;
+    }
+    tsError.classList.remove('show'); tsInput.classList.remove('error');
+    const d = new Date(ms);
+    const local = formatLocal(d);
+    const utc = formatUTC(d);
+    const iso = d.toISOString();
+    const rel = relativeTime(d);
+    $('r-local').textContent = local; $('r-local').parentElement.dataset.copy = local;
+    $('r-utc').textContent = utc; $('r-utc').parentElement.dataset.copy = utc;
+    $('r-iso').textContent = iso; $('r-iso').parentElement.dataset.copy = iso;
+    $('r-relative').textContent = rel; $('r-relative').parentElement.dataset.copy = rel;
+  }
+  tsInput.addEventListener('input', convertTs);
+
+  document.querySelectorAll('[data-ts]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const k = btn.dataset.ts;
+      let v;
+      if (k === 'now') v = Math.floor(Date.now() / 1000);
+      else if (k === 'today') { const d = new Date(); d.setHours(0,0,0,0); v = Math.floor(d.getTime()/1000); }
+      else if (k === '0') v = 0;
+      else if (k === 'y2k38') v = 2147483647;
+      tsInput.value = v;
+      convertTs();
+    });
+  });
+
+  // ===== 日期 → 时间戳 =====
+  const dateInput = $('dateInput');
+  function convertDate() {
+    const v = dateInput.value;
+    if (!v) {
+      ['r-sec','r-ms','r-utc2','r-week'].forEach(id => {
+        $(id).textContent = '--';
+        $(id).parentElement.dataset.copy = '';
+      });
+      return;
+    }
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return;
+    const sec = Math.floor(d.getTime() / 1000);
+    const ms = d.getTime();
+    const utc = formatUTC(d);
+    const wk = WEEK[d.getDay()] + ' ' + d.toDateString().split(' ')[0];
+    $('r-sec').textContent = sec; $('r-sec').parentElement.dataset.copy = String(sec);
+    $('r-ms').textContent = ms; $('r-ms').parentElement.dataset.copy = String(ms);
+    $('r-utc2').textContent = utc; $('r-utc2').parentElement.dataset.copy = utc;
+    $('r-week').textContent = wk; $('r-week').parentElement.dataset.copy = wk;
+  }
+  dateInput.addEventListener('input', convertDate);
+
+  document.querySelectorAll('[data-date]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const k = btn.dataset.date;
+      const d = new Date();
+      if (k === 'today') d.setHours(0,0,0,0);
+      else if (k === 'tomorrow') { d.setDate(d.getDate()+1); d.setHours(0,0,0,0); }
+      else if (k === 'week') { d.setDate(d.getDate()+7); }
+      dateInput.value = localToInputValue(d);
+      convertDate();
+    });
+  });
+
+  // ===== 初始化 =====
+  tsInput.value = Math.floor(Date.now() / 1000);
+  convertTs();
+  dateInput.value = localToInputValue(new Date());
+  convertDate();
+
+  // ===== 点击结果行复制 =====
+  document.querySelectorAll('.result-row').forEach(row => {
+    row.addEventListener('click', () => copyText(row.dataset.copy));
+  });
+</script>
+</body>
+</html>
